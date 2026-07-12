@@ -504,22 +504,9 @@ function renderHistoryGroups() {
   });
 }
 
-function updateResultCardFromLatest() {
-  const history = getHistory();
-  if (history.length === 0) {
-    els.resultCard.classList.add("hidden");
-    currentTrip = null;
-    return;
-  }
-  const latest = history.slice().sort((a, b) => new Date(b.fecha) - new Date(a.fecha))[0];
-  currentTrip = latest;
-  showResultCard(latest);
-}
-
 function refreshMain() {
   renderConfigSummary();
   renderHistoryGroups();
-  updateResultCardFromLatest();
 }
 
 function resetTripForm() {
