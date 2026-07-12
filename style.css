@@ -344,6 +344,12 @@ input:focus {
 .btn-primary:hover { background: var(--primary-dark); }
 .btn-primary:disabled { opacity: 0.6; cursor: default; }
 
+.btn-gps-cta {
+  margin-top: 6px;
+  letter-spacing: 0.03em;
+  box-shadow: 0 0 0 3px rgba(47, 143, 239, 0.18);
+}
+
 .link-btn-block {
   display: block;
   width: 100%;
