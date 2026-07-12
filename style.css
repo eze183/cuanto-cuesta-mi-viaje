@@ -289,6 +289,33 @@ input:focus {
 .btn-outline:hover { background: rgba(138, 144, 255, 0.1); }
 .btn-outline:disabled { opacity: 0.6; cursor: default; }
 
+.consumo-switch {
+  display: flex;
+  gap: 4px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 14px;
+}
+
+.consumo-switch-btn {
+  flex: 1;
+  padding: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.consumo-switch-btn.active {
+  background: var(--primary);
+  color: #fff;
+}
+
 .divider {
   display: flex;
   align-items: center;

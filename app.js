@@ -21,6 +21,7 @@ const els = {
   tripError: document.getElementById("trip-error"),
   btnCalcular: document.getElementById("btn-calcular"),
   btnOpenGps: document.getElementById("btn-open-gps"),
+  consumoSwitch: document.getElementById("consumo-switch"),
 
   resultCard: document.getElementById("result-card"),
   resultTotal: document.getElementById("result-total"),
@@ -32,7 +33,9 @@ const els = {
 
   modalSetup: document.getElementById("modal-setup"),
   btnCloseSetup: document.getElementById("btn-close-setup"),
-  setupConsumo: document.getElementById("setup-consumo"),
+  setupVehiculoTipo: document.getElementById("setup-vehiculo-tipo"),
+  setupConsumoCiudad: document.getElementById("setup-consumo-ciudad"),
+  setupConsumoRuta: document.getElementById("setup-consumo-ruta"),
   setupPrecio: document.getElementById("setup-precio"),
   setupMoneda: document.getElementById("setup-moneda"),
   setupPeso: document.getElementById("setup-peso"),
@@ -64,6 +67,13 @@ const els = {
 
 const DEFAULT_PESO_KG = 70;
 
+const VEHICLE_PRESETS = {
+  chico: { ciudad: 7.5, ruta: 5.5 },
+  sedan: { ciudad: 9.5, ruta: 7 },
+  suv: { ciudad: 11.5, ruta: 8.5 },
+  camioneta: { ciudad: 13, ruta: 9.5 },
+};
+
 const ACTIVITIES = [
   { key: "auto", icon: "🚗", label: "En auto (estimado)", speedKmH: 60, met: null, reference: true },
   { key: "bici", icon: "🚴", label: "En bicicleta", speedKmH: 16, met: 6.8 },
@@ -73,6 +83,14 @@ const ACTIVITIES = [
 
 let currentTrip = null;
 let currentDetailTrip = null;
+let consumoModo = "ciudad";
+
+function getConsumo(config) {
+  if (config.consumoCiudad != null && config.consumoRuta != null) {
+    return consumoModo === "ruta" ? config.consumoRuta : config.consumoCiudad;
+  }
+  return config.consumo;
+}
 let userLocation = null;
 let userLocationRequested = false;
 
@@ -366,7 +384,7 @@ function showResultCard(trip) {
 
 function finalizeTrip(distanciaKm, { origen, destino, viaGps } = {}) {
   const config = getConfig();
-  const litros = (distanciaKm / 100) * config.consumo;
+  const litros = (distanciaKm / 100) * getConsumo(config);
   const costoTotal = litros * config.precio;
 
   const trip = {
@@ -379,6 +397,7 @@ function finalizeTrip(distanciaKm, { origen, destino, viaGps } = {}) {
     origen: origen || null,
     destino: destino || null,
     viaGps: Boolean(viaGps),
+    consumoModo,
   };
 
   const history = getHistory();
@@ -393,10 +412,11 @@ function finalizeTrip(distanciaKm, { origen, destino, viaGps } = {}) {
 function renderConfigSummary() {
   const config = getConfig();
   if (!config) return;
-  els.configSummaryText.textContent = `${config.consumo} L/100km · $${formatNumber(
-    config.precio,
-    2
-  )}/L (${config.moneda})`;
+  const consumoText =
+    config.consumoCiudad != null && config.consumoRuta != null
+      ? `🏙️ ${config.consumoCiudad} · 🛣️ ${config.consumoRuta} L/100km`
+      : `${config.consumo} L/100km`;
+  els.configSummaryText.textContent = `${consumoText} · $${formatNumber(config.precio, 2)}/L (${config.moneda})`;
 }
 
 function groupHistoryByMonth(history) {
@@ -537,7 +557,11 @@ setupAddressAutocomplete(els.tripDestino, els.destinoSuggestions);
 
 function openSetupModal({ onboarding = false } = {}) {
   const config = getConfig();
-  els.setupConsumo.value = config ? config.consumo : "";
+  const consumoCiudad = config && config.consumoCiudad != null ? config.consumoCiudad : config ? config.consumo : "";
+  const consumoRuta = config && config.consumoRuta != null ? config.consumoRuta : config ? config.consumo : "";
+  els.setupVehiculoTipo.value = (config && config.vehiculoTipo) || "";
+  els.setupConsumoCiudad.value = consumoCiudad;
+  els.setupConsumoRuta.value = consumoRuta;
   els.setupPrecio.value = config ? config.precio : "";
   els.setupMoneda.value = config ? config.moneda : "";
   els.setupPeso.value = config && config.peso ? config.peso : "";
@@ -550,15 +574,27 @@ els.btnSettings.addEventListener("click", () => openSetupModal());
 els.btnEditConfig.addEventListener("click", () => openSetupModal());
 els.btnCloseSetup.addEventListener("click", () => closeModal(els.modalSetup));
 
+els.setupVehiculoTipo.addEventListener("change", () => {
+  const preset = VEHICLE_PRESETS[els.setupVehiculoTipo.value];
+  if (!preset) return;
+  els.setupConsumoCiudad.value = preset.ciudad;
+  els.setupConsumoRuta.value = preset.ruta;
+});
+
 els.btnSaveSetup.addEventListener("click", () => {
-  const consumo = els.setupConsumo.value.trim();
+  const consumoCiudad = els.setupConsumoCiudad.value.trim();
+  const consumoRuta = els.setupConsumoRuta.value.trim();
   const precio = els.setupPrecio.value.trim();
   const moneda = els.setupMoneda.value.trim() || "ARS";
   const pesoRaw = els.setupPeso.value.trim();
 
-  if (!isValidNumber(consumo, { allowZero: false }) || !isValidNumber(precio, { allowZero: false })) {
+  if (
+    !isValidNumber(consumoCiudad, { allowZero: false }) ||
+    !isValidNumber(consumoRuta, { allowZero: false }) ||
+    !isValidNumber(precio, { allowZero: false })
+  ) {
     els.setupError.textContent =
-      "Ingresá valores numéricos mayores a cero para consumo y precio.";
+      "Ingresá valores numéricos mayores a cero para consumo (ciudad y ruta) y precio.";
     els.setupError.classList.remove("hidden");
     return;
   }
@@ -570,7 +606,9 @@ els.btnSaveSetup.addEventListener("click", () => {
   }
 
   saveConfig({
-    consumo: Number(consumo),
+    consumoCiudad: Number(consumoCiudad),
+    consumoRuta: Number(consumoRuta),
+    vehiculoTipo: els.setupVehiculoTipo.value || null,
     precio: Number(precio),
     moneda: moneda.toUpperCase(),
     peso: pesoRaw === "" ? null : Number(pesoRaw),
@@ -581,6 +619,15 @@ els.btnSaveSetup.addEventListener("click", () => {
   els.configSummaryCard.classList.remove("hidden");
   els.tripCard.classList.remove("hidden");
   refreshMain();
+});
+
+els.consumoSwitch.addEventListener("click", (e) => {
+  const btn = e.target.closest(".consumo-switch-btn");
+  if (!btn) return;
+  consumoModo = btn.dataset.modo;
+  els.consumoSwitch.querySelectorAll(".consumo-switch-btn").forEach((b) => {
+    b.classList.toggle("active", b === btn);
+  });
 });
 
 // --- Formulario de viaje ---
@@ -799,7 +846,7 @@ function startGpsTracking() {
       els.gpsDistancia.textContent = formatDistance(gpsDistanciaKm);
 
       const config = getConfig();
-      const litros = (gpsDistanciaKm / 100) * config.consumo;
+      const litros = (gpsDistanciaKm / 100) * getConsumo(config);
       const costo = litros * config.precio;
       els.gpsLitros.textContent = `${formatNumber(litros, 2)} L`;
       els.gpsCosto.textContent = formatMoney(costo, config.moneda);

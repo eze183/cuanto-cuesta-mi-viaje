@@ -27,6 +27,11 @@
   <section id="trip-card" class="card hidden">
     <h2>¿A dónde vas?</h2>
 
+    <div id="consumo-switch" class="consumo-switch" role="group" aria-label="Tipo de consumo">
+      <button type="button" class="consumo-switch-btn active" data-modo="ciudad">🏙️ Ciudad</button>
+      <button type="button" class="consumo-switch-btn" data-modo="ruta">🛣️ Ruta</button>
+    </div>
+
     <button id="btn-open-gps" class="btn-primary btn-gps-cta" type="button">🚀 INICIAR CON GPS</button>
 
     <div class="divider"><span>o ingresá el viaje manualmente</span></div>
@@ -93,8 +98,20 @@
       <h2>🚗 Configurá tu vehículo</h2>
       <p class="hint">Estos datos se guardan en tu dispositivo y no se vuelven a pedir.</p>
 
-      <label for="setup-consumo">⛽ Consumo (litros cada 100 km)</label>
-      <input type="number" id="setup-consumo" inputmode="decimal" min="0" step="0.1" placeholder="Ej: 8.5">
+      <label for="setup-vehiculo-tipo">🚘 Tipo de vehículo (opcional, autocompleta el consumo)</label>
+      <select id="setup-vehiculo-tipo">
+        <option value="">Elegí un tipo o cargá el consumo manualmente</option>
+        <option value="chico">Auto chico</option>
+        <option value="sedan">Sedán / compacto</option>
+        <option value="suv">SUV / crossover</option>
+        <option value="camioneta">Camioneta / pickup</option>
+      </select>
+
+      <label for="setup-consumo-ciudad">🏙️ Consumo en ciudad (litros cada 100 km)</label>
+      <input type="number" id="setup-consumo-ciudad" inputmode="decimal" min="0" step="0.1" placeholder="Ej: 9.5">
+
+      <label for="setup-consumo-ruta">🛣️ Consumo en ruta (litros cada 100 km)</label>
+      <input type="number" id="setup-consumo-ruta" inputmode="decimal" min="0" step="0.1" placeholder="Ej: 7">
 
       <label for="setup-precio">💲 Precio del litro de combustible</label>
       <input type="number" id="setup-precio" inputmode="decimal" min="0" step="1" placeholder="Ej: 950">
