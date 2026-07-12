@@ -1,0 +1,168 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tu viaje</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="style.css">
+
+<div class="app">
+  <header class="app-header">
+    <div class="header-left">
+      <span class="header-icon">🚗</span>
+      <h1>Tu viaje</h1>
+    </div>
+    <button id="btn-settings" class="icon-btn" title="Configurar vehículo" aria-label="Configurar vehículo">⚙️</button>
+  </header>
+
+  <!-- Resumen del vehículo configurado -->
+  <section id="config-summary-card" class="card config-card hidden">
+    <span class="config-card-icon">⛽</span>
+    <div class="config-card-body">
+      <span class="config-card-title">Tu auto</span>
+      <span id="config-summary-text" class="config-card-sub"></span>
+    </div>
+    <button id="btn-edit-config" class="chevron-link">Editar <span class="chevron">›</span></button>
+  </section>
+
+  <!-- Formulario de viaje -->
+  <section id="trip-card" class="card hidden">
+    <h2>¿A dónde vas?</h2>
+
+    <div class="route-row">
+      <div class="route-visual">
+        <span class="route-dot"></span>
+        <span class="route-line"></span>
+        <span class="route-pin">📍</span>
+      </div>
+      <div class="route-fields">
+        <label for="trip-origen">Desde</label>
+        <input type="text" id="trip-origen" placeholder="Dirección de partida">
+        <label for="trip-destino">Hasta</label>
+        <input type="text" id="trip-destino" placeholder="Dirección de destino">
+      </div>
+    </div>
+
+    <button id="btn-use-location" class="btn-outline" type="button">📍 Usar mi ubicación</button>
+    <button id="btn-calc-address" class="btn-outline" type="button">🧭 Calcular distancia por dirección</button>
+
+    <p id="address-error" class="error hidden"></p>
+
+    <div class="divider"><span>o</span></div>
+
+    <label for="trip-distancia">Distancia</label>
+    <div class="distance-input-wrap">
+      <input type="number" id="trip-distancia" inputmode="decimal" min="0" step="1" placeholder="Ej: 12,4">
+      <button id="trip-unidad-toggle" type="button" class="unit-toggle" data-unidad="km">km</button>
+    </div>
+
+    <p id="trip-error" class="error hidden"></p>
+
+    <button id="btn-calcular" class="btn-primary">Ver costo</button>
+    <button id="btn-open-gps" class="link-btn-block">📍 Registrar con GPS</button>
+  </section>
+
+  <!-- Costo estimado del último viaje calculado -->
+  <button id="result-card" class="card result-summary-card hidden" type="button">
+    <span class="result-card-icon">💲</span>
+    <div class="result-card-body">
+      <span class="result-card-title">Costo estimado</span>
+      <span id="result-total" class="result-card-amount"></span>
+      <span id="result-sub" class="result-card-sub"></span>
+    </div>
+    <span class="chevron">›</span>
+  </button>
+
+  <!-- Historial -->
+  <section id="history-section" class="hidden">
+    <div id="history-groups"></div>
+    <p id="history-empty" class="hint hidden">Todavía no calculaste ningún viaje.</p>
+  </section>
+
+  <!-- Configuración del vehículo (modal, también usado en el primer uso) -->
+  <div id="modal-setup" class="modal-overlay hidden">
+    <div class="modal-card">
+      <button id="btn-close-setup" class="modal-close hidden" aria-label="Cerrar">✕</button>
+      <h2>🚗 Configurá tu vehículo</h2>
+      <p class="hint">Estos datos se guardan en tu dispositivo y no se vuelven a pedir.</p>
+
+      <label for="setup-consumo">⛽ Consumo (litros cada 100 km)</label>
+      <input type="number" id="setup-consumo" inputmode="decimal" min="0" step="0.1" placeholder="Ej: 8.5">
+
+      <label for="setup-precio">💲 Precio del litro de combustible</label>
+      <input type="number" id="setup-precio" inputmode="decimal" min="0" step="1" placeholder="Ej: 950">
+
+      <label for="setup-moneda">💱 Moneda</label>
+      <input type="text" id="setup-moneda" placeholder="ARS" maxlength="6">
+
+      <label for="setup-peso">⚖️ Tu peso en kg (opcional, para estimar calorías)</label>
+      <input type="number" id="setup-peso" inputmode="decimal" min="0" step="1" placeholder="Ej: 70">
+
+      <p id="setup-error" class="error hidden"></p>
+
+      <button id="btn-save-setup" class="btn-primary">Guardar y continuar</button>
+    </div>
+  </div>
+
+  <!-- Registro de recorrido con GPS (modal) -->
+  <div id="modal-gps" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="config-summary">
+        <span>Recorrido en vivo</span>
+        <button id="btn-gps-cancel" class="link-btn">cancelar</button>
+      </div>
+
+      <div id="gps-map"></div>
+
+      <div class="gps-stats">
+        <div>
+          <span class="gps-stat-label">📏 Distancia</span>
+          <span id="gps-distancia" class="gps-stat-value">0 m</span>
+        </div>
+        <div>
+          <span class="gps-stat-label">⏱️ Tiempo</span>
+          <span id="gps-tiempo" class="gps-stat-value">00:00</span>
+        </div>
+        <div>
+          <span class="gps-stat-label">⛽ Consumo</span>
+          <span id="gps-litros" class="gps-stat-value">0,0 L</span>
+        </div>
+        <div>
+          <span class="gps-stat-label">💰 Costo</span>
+          <span id="gps-costo" class="gps-stat-value">-</span>
+        </div>
+      </div>
+
+      <p id="gps-error" class="error hidden"></p>
+
+      <button id="btn-gps-toggle" class="btn-primary">Iniciar recorrido</button>
+
+      <div id="gps-finish-panel" class="hidden">
+        <p class="hint">Recorrido finalizado: <strong id="gps-final-distancia"></strong></p>
+        <button id="btn-gps-confirmar" class="btn-primary">Guardar viaje</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detalle del viaje + comparación con otros medios (modal) -->
+  <div id="modal-detail" class="modal-overlay hidden">
+    <div class="modal-card">
+      <button id="btn-close-detail" class="modal-close" aria-label="Cerrar">✕</button>
+
+      <p id="detail-route" class="hint"></p>
+      <p class="result-label">💰 Costo total</p>
+      <p id="detail-total" class="result-total"></p>
+      <div class="result-detail">
+        <span id="detail-distancia"></span>
+        <span id="detail-litros"></span>
+      </div>
+
+      <div class="comparison-card-inner">
+        <h2>🧭 ¿Y si lo hacías de otra forma?</h2>
+        <p class="hint">Mismo recorrido, otros medios (estimado).</p>
+        <div id="comparison-list" class="comparison-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
