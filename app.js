@@ -900,3 +900,13 @@ function init() {
 }
 
 init();
+
+// Algunos navegadores (sobre todo en celulares) restauran la página desde
+// una caché de memoria en vez de recargarla al reabrirla, dejando la
+// tarjeta de costo tal cual había quedado. La ocultamos en ese caso.
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) {
+    currentTrip = null;
+    els.resultCard.classList.add("hidden");
+  }
+});
