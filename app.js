@@ -11,6 +11,8 @@ const els = {
   tripCard: document.getElementById("trip-card"),
   tripOrigen: document.getElementById("trip-origen"),
   tripDestino: document.getElementById("trip-destino"),
+  origenSuggestions: document.getElementById("origen-suggestions"),
+  destinoSuggestions: document.getElementById("destino-suggestions"),
   btnUseLocation: document.getElementById("btn-use-location"),
   btnCalcAddress: document.getElementById("btn-calc-address"),
   addressError: document.getElementById("address-error"),
@@ -57,6 +59,7 @@ const els = {
   detailDistancia: document.getElementById("detail-distancia"),
   detailLitros: document.getElementById("detail-litros"),
   comparisonList: document.getElementById("comparison-list"),
+  btnDeleteTrip: document.getElementById("btn-delete-trip"),
 };
 
 const DEFAULT_PESO_KG = 70;
@@ -69,6 +72,21 @@ const ACTIVITIES = [
 ];
 
 let currentTrip = null;
+let currentDetailTrip = null;
+let userLocation = null;
+let userLocationRequested = false;
+
+function ensureUserLocation() {
+  if (userLocationRequested || !navigator.geolocation) return;
+  userLocationRequested = true;
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    },
+    () => {},
+    { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
+  );
+}
 
 function getConfig() {
   try {
@@ -82,12 +100,28 @@ function saveConfig(config) {
   localStorage.setItem(STORAGE_CONFIG, JSON.stringify(config));
 }
 
+function makeId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function getHistory() {
+  let history;
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_HISTORY)) || [];
+    history = JSON.parse(localStorage.getItem(STORAGE_HISTORY)) || [];
   } catch {
-    return [];
+    history = [];
   }
+
+  let mutated = false;
+  history.forEach((trip) => {
+    if (!trip.id) {
+      trip.id = makeId();
+      mutated = true;
+    }
+  });
+  if (mutated) saveHistory(history);
+
+  return history;
 }
 
 function saveHistory(history) {
@@ -143,6 +177,81 @@ async function reverseGeocode(lat, lng) {
   const road = a.road || a.pedestrian || a.footway || "";
   if (road) return a.house_number ? `${road} ${a.house_number}` : road;
   return data.display_name.split(",").slice(0, 2).join(",").trim();
+}
+
+async function searchAddressSuggestions(query) {
+  let url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&accept-language=es&q=${encodeURIComponent(
+    query
+  )}`;
+  if (userLocation) {
+    const d = 0.35;
+    const left = userLocation.lng - d;
+    const right = userLocation.lng + d;
+    const top = userLocation.lat + d;
+    const bottom = userLocation.lat - d;
+    url += `&viewbox=${left},${top},${right},${bottom}&bounded=0`;
+  }
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+function formatSuggestionLabel(item) {
+  const a = item.address || {};
+  const main = a.road ? (a.house_number ? `${a.road} ${a.house_number}` : a.road) : item.display_name.split(",")[0];
+  const city = a.city || a.town || a.village || a.suburb || "";
+  const state = a.state || "";
+  return [main, city, state].filter(Boolean).join(", ");
+}
+
+function setupAddressAutocomplete(input, suggestionsEl) {
+  let debounceTimer = null;
+  let requestToken = 0;
+
+  function hideSuggestions() {
+    suggestionsEl.classList.add("hidden");
+    suggestionsEl.innerHTML = "";
+  }
+
+  input.addEventListener("focus", ensureUserLocation);
+
+  input.addEventListener("input", () => {
+    const query = input.value.trim();
+    clearTimeout(debounceTimer);
+
+    if (query.length < 3) {
+      hideSuggestions();
+      return;
+    }
+
+    const myToken = ++requestToken;
+    debounceTimer = setTimeout(async () => {
+      const results = await searchAddressSuggestions(query);
+      if (myToken !== requestToken) return;
+
+      if (!results.length) {
+        hideSuggestions();
+        return;
+      }
+
+      suggestionsEl.innerHTML = results
+        .map((item, i) => `<button type="button" class="address-suggestion-item" data-index="${i}">${formatSuggestionLabel(item)}</button>`)
+        .join("");
+      suggestionsEl.classList.remove("hidden");
+
+      suggestionsEl.querySelectorAll(".address-suggestion-item").forEach((btn, i) => {
+        btn.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          input.value = formatSuggestionLabel(results[i]);
+          hideSuggestions();
+        });
+      });
+    }, 400);
+  });
+
+  input.addEventListener("blur", () => {
+    setTimeout(hideSuggestions, 150);
+  });
 }
 
 async function routeDistanceKm(origin, destination) {
@@ -240,6 +349,7 @@ function routeLabel(trip) {
 }
 
 function openDetailModal(trip) {
+  currentDetailTrip = trip;
   els.detailRoute.textContent = routeLabel(trip);
   els.detailTotal.textContent = formatMoney(trip.costoTotal, trip.moneda);
   els.detailDistancia.textContent = `📏 ${formatDistance(trip.distancia)}`;
@@ -260,6 +370,7 @@ function finalizeTrip(distanciaKm, { origen, destino, viaGps } = {}) {
   const costoTotal = litros * config.precio;
 
   const trip = {
+    id: makeId(),
     fecha: new Date().toISOString(),
     distancia: distanciaKm,
     litros,
@@ -407,6 +518,21 @@ els.resultCard.addEventListener("click", () => {
 
 els.btnCloseDetail.addEventListener("click", () => closeModal(els.modalDetail));
 
+els.btnDeleteTrip.addEventListener("click", () => {
+  if (!currentDetailTrip) return;
+  const confirmed = window.confirm("¿Seguro que querés eliminar este viaje del historial?");
+  if (!confirmed) return;
+
+  const history = getHistory().filter((t) => t.id !== currentDetailTrip.id);
+  saveHistory(history);
+  currentDetailTrip = null;
+  closeModal(els.modalDetail);
+  refreshMain();
+});
+
+setupAddressAutocomplete(els.tripOrigen, els.origenSuggestions);
+setupAddressAutocomplete(els.tripDestino, els.destinoSuggestions);
+
 // --- Configuración del vehículo ---
 
 function openSetupModal({ onboarding = false } = {}) {
@@ -540,6 +666,8 @@ els.btnUseLocation.addEventListener("click", () => {
 
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
+      userLocationRequested = true;
+      userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       try {
         els.tripOrigen.value = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
       } catch (err) {

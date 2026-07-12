@@ -35,9 +35,15 @@
       </div>
       <div class="route-fields">
         <label for="trip-origen">Desde</label>
-        <input type="text" id="trip-origen" placeholder="Dirección de partida">
+        <div class="address-field">
+          <input type="text" id="trip-origen" placeholder="Dirección de partida" autocomplete="off">
+          <div id="origen-suggestions" class="address-suggestions hidden"></div>
+        </div>
         <label for="trip-destino">Hasta</label>
-        <input type="text" id="trip-destino" placeholder="Dirección de destino">
+        <div class="address-field">
+          <input type="text" id="trip-destino" placeholder="Dirección de destino" autocomplete="off">
+          <div id="destino-suggestions" class="address-suggestions hidden"></div>
+        </div>
       </div>
     </div>
 
@@ -160,6 +166,8 @@
         <p class="hint">Mismo recorrido, otros medios (estimado).</p>
         <div id="comparison-list" class="comparison-list"></div>
       </div>
+
+      <button id="btn-delete-trip" class="btn-delete-trip" type="button">🗑️ Eliminar viaje</button>
     </div>
   </div>
 </div>
