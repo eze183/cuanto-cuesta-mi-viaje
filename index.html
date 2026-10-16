@@ -1,196 +1,109 @@
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tu viaje</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="style.css">
-
-<div class="app">
-  <header class="app-header">
-    <div class="header-left">
-      <span class="header-icon">🚗</span>
-      <h1>Tu viaje</h1>
-    </div>
-    <button id="btn-settings" class="icon-btn" title="Configurar vehículo" aria-label="Configurar vehículo">⚙️</button>
-  </header>
-
-  <!-- Resumen del vehículo configurado -->
-  <section id="config-summary-card" class="card config-card hidden">
-    <span class="config-card-icon">⛽</span>
-    <div class="config-card-body">
-      <span class="config-card-title">Tu auto</span>
-      <span id="config-summary-text" class="config-card-sub"></span>
-    </div>
-    <button id="btn-edit-config" class="chevron-link">Editar <span class="chevron">›</span></button>
-  </section>
-
-  <!-- Formulario de viaje -->
-  <section id="trip-card" class="card hidden">
-    <h2>¿A dónde vas?</h2>
-
-    <div id="consumo-switch" class="consumo-switch" role="group" aria-label="Tipo de consumo">
-      <button type="button" class="consumo-switch-btn active" data-modo="ciudad">🏙️ Ciudad</button>
-      <button type="button" class="consumo-switch-btn" data-modo="ruta">🛣️ Ruta</button>
-    </div>
-
-    <button id="btn-open-gps" class="btn-primary btn-gps-cta" type="button">🚀 INICIAR CON GPS</button>
-
-    <div class="divider"><span>o ingresá el viaje manualmente</span></div>
-
-    <div class="route-row">
-      <div class="route-visual">
-        <span class="route-dot"></span>
-        <span class="route-line"></span>
-        <span class="route-pin">📍</span>
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101917">
+  <meta name="description" content="Calculá el combustible y el costo de tus viajes. Por distancia, dirección o GPS, con un historial guardado en tu navegador.">
+  <title>Tu viaje · Calculadora de combustible</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23c5f277'/%3E%3Cpath d='M10 28V15a5 5 0 0 1 10 0v10a5 5 0 0 0 10 0V12' fill='none' stroke='%23101917' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+    <symbol id="i-route" viewBox="0 0 24 24"><path d="M5 19V8a4 4 0 0 1 8 0v8a3 3 0 0 0 6 0V5"/><circle cx="5" cy="20" r="1"/><path d="m16 7 3-3 3 3"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10" r="2"/></symbol>
+    <symbol id="i-gps" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></symbol>
+    <symbol id="i-fuel" viewBox="0 0 24 24"><path d="M4 21V4h10v17M2 21h14M4 10h10m0 3h2a2 2 0 0 1 2 2v3a2 2 0 0 0 4 0V9l-4-4m2 2-2 2 4 4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-car" viewBox="0 0 24 24"><path d="m4 10 2-6h12l2 6M3 10h18v8H3zM5 18v3m14-3v3M6 14h2m8 0h2"/></symbol>
+  </defs></svg>
+  <a class="skip-link" href="#calculator-title">Ir a la calculadora</a>
+  <div class="app">
+    <header class="app-header">
+      <a class="brand" href="./" aria-label="Tu viaje, inicio"><span class="brand-mark"><svg class="icon"><use href="#i-route"/></svg></span><span>tu viaje<span class="brand-dot">.</span></span></a>
+      <nav aria-label="Principal"><a href="#history-section" class="nav-link">Mis viajes</a><button id="btn-settings" class="icon-btn" aria-label="Configurar vehículo" title="Configurar vehículo"><svg class="icon"><use href="#i-settings"/></svg></button></nav>
+    </header>
+    <main>
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow"><span class="status-dot"></span> CADA KILÓMETRO CUENTA</p>
+        <h1 id="page-title">Calculá antes <span>de salir.</span></h1>
+        <p>Sabé cuánto combustible necesitás y cuánto te va a costar.</p>
+      </section>
+      <p id="storage-notice" class="notice" role="status" hidden></p>
+      <div class="workspace">
+        <section id="trip-card" class="card calculator" aria-labelledby="calculator-title">
+          <div class="section-heading"><div><p class="eyebrow">PLANIFICÁ TU RECORRIDO</p><h2 id="calculator-title" tabindex="-1">Tu próximo viaje</h2></div><span class="step-badge">01</span></div>
+          <div class="mode-tabs" role="tablist" aria-label="Cómo calcular el viaje">
+            <button id="tab-distance" role="tab" aria-selected="true" aria-controls="panel-distance" data-mode="distance"><svg class="icon"><use href="#i-route"/></svg>Distancia</button>
+            <button id="tab-address" role="tab" aria-selected="false" aria-controls="panel-address" tabindex="-1" data-mode="address"><svg class="icon"><use href="#i-pin"/></svg>Dirección</button>
+            <button id="tab-gps" role="tab" aria-selected="false" aria-controls="panel-gps" tabindex="-1" data-mode="gps"><svg class="icon"><use href="#i-gps"/></svg>GPS</button>
+          </div>
+          <fieldset class="consumption"><legend>Tipo de recorrido</legend><div class="segmented" id="consumo-switch"><label><input type="radio" name="consumption" value="ciudad" checked><span>Ciudad</span></label><label><input type="radio" name="consumption" value="ruta"><span>Ruta</span></label></div></fieldset>
+          <form id="distance-form" novalidate>
+            <div id="panel-distance" role="tabpanel" aria-labelledby="tab-distance">
+              <label for="trip-distancia">¿Cuánto vas a recorrer?</label>
+              <div class="distance-field"><input type="text" id="trip-distancia" inputmode="decimal" placeholder="0" autocomplete="off" aria-describedby="distance-hint trip-error"><select id="trip-unidad" aria-label="Unidad de distancia"><option value="km">km</option><option value="m">m</option></select></div>
+              <p id="distance-hint" class="hint">Solo ida o el total de ida y vuelta. Vos elegís.</p>
+              <p id="trip-error" class="error" role="alert" hidden></p>
+              <button id="btn-calcular" class="btn-primary" type="submit">Calcular costo <svg class="icon"><use href="#i-arrow"/></svg></button>
+            </div>
+          </form>
+          <form id="address-form" novalidate>
+            <div id="panel-address" role="tabpanel" aria-labelledby="tab-address" hidden>
+              <label for="trip-origen">Desde</label><div class="address-field"><div class="search-field"><input type="text" id="trip-origen" placeholder="Dirección y ciudad" autocomplete="off" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="origen-suggestions" aria-describedby="address-hint"><button id="search-origin" type="button" class="icon-btn" aria-label="Buscar dirección de origen"><svg class="icon"><use href="#i-search"/></svg></button></div><ul id="origen-suggestions" role="listbox" aria-label="Direcciones de origen" class="address-suggestions" hidden></ul></div>
+              <button id="btn-use-location" class="text-button" type="button"><svg class="icon"><use href="#i-gps"/></svg>Usar mi ubicación</button>
+              <label for="trip-destino">Hasta</label><div class="address-field"><div class="search-field"><input type="text" id="trip-destino" placeholder="Dirección y ciudad" autocomplete="off" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="destino-suggestions" aria-describedby="address-hint"><button id="search-destination" type="button" class="icon-btn" aria-label="Buscar dirección de destino"><svg class="icon"><use href="#i-search"/></svg></button></div><ul id="destino-suggestions" role="listbox" aria-label="Direcciones de destino" class="address-suggestions" hidden></ul></div>
+              <p id="address-hint" class="hint">Buscá con la lupa o Enter y elegí una dirección. Datos de © OpenStreetMap.</p>
+              <p id="address-status" class="hint" role="status" hidden></p><p id="address-error" class="error" role="alert" hidden></p>
+              <button id="btn-calc-address" class="btn-primary" type="submit">Calcular recorrido <svg class="icon"><use href="#i-arrow"/></svg></button>
+            </div>
+          </form>
+          <div id="panel-gps" role="tabpanel" aria-labelledby="tab-gps" hidden>
+            <div class="gps-intro"><span class="large-icon"><svg class="icon"><use href="#i-gps"/></svg></span><h3>El costo, kilómetro a kilómetro</h3><p>Registrá la distancia de tu recorrido y obtené una estimación al terminar.</p></div>
+            <p class="hint">Necesita permiso de ubicación. Mantené esta pantalla abierta; el navegador puede pausar el GPS en segundo plano.</p>
+            <button id="btn-open-gps" class="btn-primary">Preparar recorrido <svg class="icon"><use href="#i-arrow"/></svg></button>
+          </div>
+          <div class="calculator-foot"><svg class="icon"><use href="#i-fuel"/></svg><span>Estimación de combustible. No incluye peajes ni estacionamiento.</span></div>
+        </section>
+        <aside class="summary-column" aria-label="Resultado y vehículo">
+          <section class="card result-panel" aria-labelledby="result-heading">
+            <div class="section-heading"><p id="result-heading" class="eyebrow">TU ESTIMACIÓN</p><svg class="icon"><use href="#i-route"/></svg></div>
+            <div id="result-empty" class="result-empty"><svg class="empty-route" viewBox="0 0 240 110" aria-hidden="true"><path d="M25 80h35a22 22 0 0 0 0-44H51a17 17 0 0 1 0-34h139"/><circle cx="25" cy="80" r="6"/><path d="m180 3 10 0-5 9"/></svg><h3>Un destino. Un costo claro.</h3><p>Ingresá tu recorrido para ver el combustible que vas a necesitar.</p></div>
+            <div id="result-card" hidden>
+              <p class="result-label">Costo estimado de combustible</p><h2 id="result-total" tabindex="-1"></h2><p id="result-route" class="hint"></p>
+              <dl class="result-metrics"><div><dt>Distancia</dt><dd id="result-distance"></dd></div><div><dt>Combustible</dt><dd id="result-liters"></dd></div><div><dt>Por km</dt><dd id="result-per-km"></dd></div></dl>
+              <p id="result-assumptions" class="hint"></p>
+              <button id="btn-save-trip" class="btn-primary"><svg class="icon"><use href="#i-check"/></svg>Guardar viaje</button><button id="btn-detail" class="text-button full-width">Ver detalle y comparar <svg class="icon"><use href="#i-arrow"/></svg></button>
+              <p id="save-status" class="hint" role="status" hidden></p>
+            </div>
+          </section>
+          <section id="config-summary-card" class="card vehicle-card" aria-labelledby="vehicle-heading"><span class="vehicle-icon"><svg class="icon"><use href="#i-car"/></svg></span><div><h3 id="vehicle-heading">Tu vehículo</h3><p id="config-summary-text">Configurá el consumo y el precio.</p></div><button id="btn-edit-config" class="text-button">Editar</button></section>
+          <p class="privacy-note"><svg class="icon"><use href="#i-check"/></svg>Tus viajes se guardan en este navegador.</p>
+        </aside>
       </div>
-      <div class="route-fields">
-        <label for="trip-origen">Desde</label>
-        <div class="address-field">
-          <input type="text" id="trip-origen" placeholder="Dirección de partida" autocomplete="off">
-          <div id="origen-suggestions" class="address-suggestions hidden"></div>
-        </div>
-        <label for="trip-destino">Hasta</label>
-        <div class="address-field">
-          <input type="text" id="trip-destino" placeholder="Dirección de destino" autocomplete="off">
-          <div id="destino-suggestions" class="address-suggestions hidden"></div>
-        </div>
-      </div>
-    </div>
-
-    <button id="btn-use-location" class="btn-outline" type="button">📍 Usar mi ubicación</button>
-    <button id="btn-calc-address" class="btn-outline" type="button">🧭 Calcular distancia por dirección</button>
-
-    <p id="address-error" class="error hidden"></p>
-
-    <div class="divider"><span>o</span></div>
-
-    <label for="trip-distancia">Distancia</label>
-    <div class="distance-input-wrap">
-      <input type="number" id="trip-distancia" inputmode="decimal" min="0" step="1" placeholder="Ej: 12,4">
-      <button id="trip-unidad-toggle" type="button" class="unit-toggle" data-unidad="km">km</button>
-    </div>
-
-    <p id="trip-error" class="error hidden"></p>
-
-    <button id="btn-calcular" class="btn-primary">Ver costo</button>
-  </section>
-
-  <!-- Costo estimado del último viaje calculado -->
-  <button id="result-card" class="card result-summary-card hidden" type="button">
-    <span class="result-card-icon">💲</span>
-    <div class="result-card-body">
-      <span class="result-card-title">Costo estimado</span>
-      <span id="result-total" class="result-card-amount"></span>
-      <span id="result-sub" class="result-card-sub"></span>
-    </div>
-    <span class="chevron">›</span>
-  </button>
-
-  <!-- Historial -->
-  <section id="history-section" class="hidden">
-    <div id="history-groups"></div>
-    <p id="history-empty" class="hint hidden">Todavía no calculaste ningún viaje.</p>
-  </section>
-
-  <!-- Configuración del vehículo (modal, también usado en el primer uso) -->
-  <div id="modal-setup" class="modal-overlay hidden">
-    <div class="modal-card">
-      <button id="btn-close-setup" class="modal-close hidden" aria-label="Cerrar">✕</button>
-      <h2>🚗 Configurá tu vehículo</h2>
-      <p class="hint">Estos datos se guardan en tu dispositivo y no se vuelven a pedir.</p>
-
-      <label for="setup-vehiculo-tipo">🚘 Tipo de vehículo (opcional, autocompleta el consumo)</label>
-      <select id="setup-vehiculo-tipo">
-        <option value="">Elegí un tipo o cargá el consumo manualmente</option>
-        <option value="chico">Auto chico</option>
-        <option value="sedan">Sedán / compacto</option>
-        <option value="suv">SUV / crossover</option>
-        <option value="camioneta">Camioneta / pickup</option>
-      </select>
-
-      <label for="setup-consumo-ciudad">🏙️ Consumo en ciudad (litros cada 100 km)</label>
-      <input type="number" id="setup-consumo-ciudad" inputmode="decimal" min="0" step="0.1" placeholder="Ej: 9.5">
-
-      <label for="setup-consumo-ruta">🛣️ Consumo en ruta (litros cada 100 km)</label>
-      <input type="number" id="setup-consumo-ruta" inputmode="decimal" min="0" step="0.1" placeholder="Ej: 7">
-
-      <label for="setup-precio">💲 Precio del litro de combustible</label>
-      <input type="number" id="setup-precio" inputmode="decimal" min="0" step="1" placeholder="Ej: 950">
-
-      <label for="setup-moneda">💱 Moneda</label>
-      <input type="text" id="setup-moneda" placeholder="ARS" maxlength="6">
-
-      <label for="setup-peso">⚖️ Tu peso en kg (opcional, para estimar calorías)</label>
-      <input type="number" id="setup-peso" inputmode="decimal" min="0" step="1" placeholder="Ej: 70">
-
-      <p id="setup-error" class="error hidden"></p>
-
-      <button id="btn-save-setup" class="btn-primary">Guardar y continuar</button>
-    </div>
+      <section id="history-section" class="history-section" aria-labelledby="history-title"><div class="history-heading"><div><p class="eyebrow">TUS RECORRIDOS, A MANO</p><h2 id="history-title">Mis viajes</h2></div><span id="history-count" class="count-badge">0 viajes</span></div><div id="history-groups"></div><div id="history-empty" class="history-empty"><svg class="icon"><use href="#i-clock"/></svg><div><h3>Todavía no hay viajes guardados</h3><p>Calculá un recorrido y elegí «Guardar viaje» para encontrarlo acá.</p></div></div></section>
+    </main>
+    <footer><span>tu viaje<span class="brand-dot">.</span></span><p>Menos cuentas. Más camino.</p></footer>
   </div>
-
-  <!-- Registro de recorrido con GPS (modal) -->
-  <div id="modal-gps" class="modal-overlay hidden">
-    <div class="modal-card">
-      <div class="config-summary">
-        <span>Recorrido en vivo</span>
-        <button id="btn-gps-cancel" class="link-btn">cancelar</button>
-      </div>
-
-      <div id="gps-map"></div>
-
-      <div class="gps-stats">
-        <div>
-          <span class="gps-stat-label">📏 Distancia</span>
-          <span id="gps-distancia" class="gps-stat-value">0 m</span>
-        </div>
-        <div>
-          <span class="gps-stat-label">⏱️ Tiempo</span>
-          <span id="gps-tiempo" class="gps-stat-value">00:00</span>
-        </div>
-        <div>
-          <span class="gps-stat-label">⛽ Consumo</span>
-          <span id="gps-litros" class="gps-stat-value">0,0 L</span>
-        </div>
-        <div>
-          <span class="gps-stat-label">💰 Costo</span>
-          <span id="gps-costo" class="gps-stat-value">-</span>
-        </div>
-      </div>
-
-      <p id="gps-error" class="error hidden"></p>
-
-      <button id="btn-gps-toggle" class="btn-primary">Iniciar recorrido</button>
-
-      <div id="gps-finish-panel" class="hidden">
-        <p class="hint">Recorrido finalizado: <strong id="gps-final-distancia"></strong></p>
-        <button id="btn-gps-confirmar" class="btn-primary">Guardar viaje</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Detalle del viaje + comparación con otros medios (modal) -->
-  <div id="modal-detail" class="modal-overlay hidden">
-    <div class="modal-card">
-      <button id="btn-close-detail" class="modal-close" aria-label="Cerrar">✕</button>
-
-      <p id="detail-route" class="hint"></p>
-      <p class="result-label">💰 Costo total</p>
-      <p id="detail-total" class="result-total"></p>
-      <div class="result-detail">
-        <span id="detail-distancia"></span>
-        <span id="detail-litros"></span>
-      </div>
-
-      <div class="comparison-card-inner">
-        <h2>🧭 ¿Y si lo hacías de otra forma?</h2>
-        <p class="hint">Mismo recorrido, otros medios (estimado).</p>
-        <div id="comparison-list" class="comparison-list"></div>
-      </div>
-
-      <button id="btn-delete-trip" class="btn-delete-trip" type="button">🗑️ Eliminar viaje</button>
-    </div>
-  </div>
-</div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="app.js"></script>
+  <div class="sr-only" id="announcement" role="status" aria-live="polite" aria-atomic="true"></div>
+  <dialog id="modal-setup" aria-labelledby="setup-title" aria-describedby="setup-description">
+    <div class="dialog-content"><button class="icon-btn modal-close" data-close aria-label="Cerrar configuración"><svg class="icon"><use href="#i-close"/></svg></button><p class="eyebrow">A TU MEDIDA</p><h2 id="setup-title">Configurá tu vehículo</h2><p id="setup-description" class="hint">Una vez y listo. Podés cambiar estos datos cuando quieras.</p>
+      <form id="setup-form" novalidate>
+        <label for="setup-vehiculo-tipo">Tipo de vehículo</label><select id="setup-vehiculo-tipo" aria-describedby="preset-hint"><option value="">Cargar consumo manualmente</option><option value="chico">Auto chico</option><option value="sedan">Sedán / compacto</option><option value="suv">SUV / crossover</option><option value="camioneta">Camioneta / pickup</option></select><p id="preset-hint" class="hint">Los consumos sugeridos son estimaciones. Ajustalos a tu auto.</p>
+        <div class="form-row"><div><label for="setup-consumo-ciudad">Ciudad <span>(L/100 km)</span></label><input id="setup-consumo-ciudad" type="text" inputmode="decimal" placeholder="9,5" aria-describedby="setup-error"></div><div><label for="setup-consumo-ruta">Ruta <span>(L/100 km)</span></label><input id="setup-consumo-ruta" type="text" inputmode="decimal" placeholder="7" aria-describedby="setup-error"></div></div>
+        <div class="form-row price-row"><div><label for="setup-precio">Precio por litro</label><input id="setup-precio" type="text" inputmode="decimal" placeholder="1500" aria-describedby="setup-error"></div><div><label for="setup-moneda">Moneda</label><select id="setup-moneda"><option value="ARS">ARS</option><option value="USD">USD</option><option value="UYU">UYU</option><option value="CLP">CLP</option><option value="BRL">BRL</option><option value="EUR">EUR</option></select></div></div>
+        <details class="advanced"><summary>Opciones de comparación</summary><label for="setup-peso">Tu peso en kg <span>(opcional)</span></label><input id="setup-peso" type="text" inputmode="decimal" placeholder="70"><p class="hint">Para estimar calorías al caminar, correr o pedalear. Si lo dejás vacío usamos 70 kg.</p></details>
+        <p id="setup-error" class="error" role="alert" hidden></p><button id="btn-save-setup" class="btn-primary" type="submit">Guardar configuración <svg class="icon"><use href="#i-check"/></svg></button>
+      </form><p class="privacy-copy">Se guarda en este navegador. Si borrás sus datos, podés perder tu configuración e historial.</p></div>
+  </dialog>
+  <dialog id="modal-detail" aria-labelledby="detail-title"><div class="dialog-content"><button class="icon-btn modal-close" data-close aria-label="Cerrar detalle"><svg class="icon"><use href="#i-close"/></svg></button><p class="eyebrow">EL VIAJE EN NÚMEROS</p><h2 id="detail-title">Detalle del recorrido</h2><p id="detail-route" class="hint"></p><p class="result-label">Combustible estimado</p><p id="detail-total" class="detail-amount"></p><div class="detail-metrics"><span id="detail-distancia"></span><span id="detail-litros"></span></div><div class="comparison"><h3>¿Y si vas de otra forma?</h3><p class="hint">Comparación orientativa sobre la misma distancia. Las rutas reales y los tiempos pueden variar.</p><div id="comparison-list"></div></div><button id="btn-delete-trip" class="btn-delete" hidden>Eliminar viaje guardado</button><p id="delete-status" class="error" role="alert" hidden></p></div></dialog>
+  <dialog id="modal-gps" aria-labelledby="gps-title"><div class="dialog-content"><button class="icon-btn modal-close" data-close aria-label="Cerrar recorrido GPS"><svg class="icon"><use href="#i-close"/></svg></button><p class="eyebrow">EN MOVIMIENTO</p><h2 id="gps-title">Tu recorrido en vivo</h2><p class="hint">No uses el teléfono mientras conducís. El costo es una estimación.</p><div id="gps-map" aria-label="Mapa del recorrido"><p id="map-placeholder">El mapa se carga cuando recibimos tu ubicación.</p></div><p id="map-status" class="hint" role="status" hidden></p><dl class="gps-stats"><div><dt>Distancia</dt><dd id="gps-distancia">0 m</dd></div><div><dt>Tiempo</dt><dd id="gps-tiempo">00:00</dd></div><div><dt>Combustible</dt><dd id="gps-litros">0 L</dd></div><div><dt>Costo</dt><dd id="gps-costo">—</dd></div></dl><p id="gps-error" class="error" role="alert" hidden></p><button id="btn-gps-toggle" class="btn-primary">Iniciar recorrido</button><div id="gps-finish-panel" hidden><p id="gps-final-distancia" class="hint"></p><button id="btn-gps-confirmar" class="btn-primary">Ver estimación <svg class="icon"><use href="#i-arrow"/></svg></button></div></div></dialog>
+</body>
+</html>
