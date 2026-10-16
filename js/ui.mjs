@@ -52,71 +52,106 @@ export function initDialogs() {
   });
 }
 
-// Search is explicit: the public Nominatim service is not an autocomplete API.
-// Results still expose the keyboard interaction of an accessible combobox.
+// A debounced, keyboard/touch accessible place picker. Requests and delayed
+// suggestions are invalidated on edits, blur, mode changes and parent aborts.
 export function addressPicker(input, list, searchButton, search, onPick, onError) {
   let controller;
+  let timer;
+  let composing = false;
   let items = [];
   let active = -1;
   let revision = 0;
   let selected = null;
+  const key = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().trim().replace(/\s+/g, ' ');
   const hide = () => {
     list.hidden = true;
     input.setAttribute('aria-expanded', 'false');
     input.removeAttribute('aria-activedescendant');
     active = -1;
   };
-  const cancel = () => { revision++; controller?.abort(); hide(); searchButton.disabled = false; input.removeAttribute('aria-busy'); };
-  const pick = index => {
-    const item = items[index];
-    if (!item) return;
-    input.value = item.label;
-    selected = item;
-    hide();
-    onPick(item);
-    input.focus();
+  const cancel = () => {
+    revision++; clearTimeout(timer); controller?.abort(); hide();
+    searchButton.disabled = false; input.removeAttribute('aria-busy');
   };
-  const run = async () => {
+  const pick = (index, { notify = true, focus = true } = {}) => {
+    const item = items[index];
+    if (!item) return null;
+    clearTimeout(timer);
+    input.value = item.label; selected = item; hide();
+    onError('');
+    if (notify) onPick(item);
+    if (focus) input.focus();
+    return item;
+  };
+  function showResults() {
+    list.replaceChildren();
+    items.forEach((item, i) => {
+      const option = node('li', 'address-option');
+      option.id = `${list.id}-${i}`;
+      option.setAttribute('role', 'option');
+      option.setAttribute('aria-selected', 'false');
+      option.setAttribute('aria-label', item.label);
+      option.append(node('span', 'place-name', item.name || item.label));
+      const context = [item.kind, item.detail].filter(Boolean).join(' · ');
+      if (context) option.append(node('span', 'place-context', context));
+      option.addEventListener('pointerdown', event => event.preventDefault());
+      option.addEventListener('click', () => pick(i));
+      list.append(option);
+    });
+    list.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+  }
+  const run = async ({ resolve = false, signal } = {}) => {
     cancel();
     const query = input.value.trim();
-    if (query.length < 3) { onError('Escribí al menos 3 caracteres para buscar una dirección.'); return; }
+    if (query.length < 3) {
+      if (resolve) { onError('Ingresá una ciudad, lugar o dirección de al menos 3 caracteres.'); input.focus(); }
+      return null;
+    }
     const current = revision;
-    controller = new AbortController();
-    searchButton.disabled = true;
-    input.setAttribute('aria-busy', 'true');
-    onError('');
+    const request = new AbortController(); controller = request;
+    const abort = () => { if (current === revision) cancel(); };
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) { abort(); signal.removeEventListener('abort', abort); return null; }
+    searchButton.disabled = true; input.setAttribute('aria-busy', 'true');
+    onError('Buscando lugares…', true);
     try {
-      items = await search(query, controller.signal);
-      if (current !== revision) return;
-      if (document.activeElement !== input && document.activeElement !== searchButton) return;
-      list.replaceChildren();
-      if (!items.length) { onError('No encontramos coincidencias. Agregá la ciudad y probá de nuevo.'); return; }
-      items.forEach((item, i) => {
-        const option = node('li', 'address-option', item.label);
-        option.id = `${list.id}-${i}`;
-        option.setAttribute('role', 'option');
-        option.setAttribute('aria-selected', 'false');
-        option.addEventListener('pointerdown', event => event.preventDefault());
-        option.addEventListener('click', () => pick(i));
-        list.append(option);
-      });
-      list.hidden = false;
-      input.setAttribute('aria-expanded', 'true');
-      input.focus();
-      onError(`${items.length} direcciones encontradas. Usá las flechas y Enter para elegir.`, true);
-    } catch (error) { if (current === revision && error.name !== 'AbortError') onError(error.message); }
-    finally {
-      // A cancelled request must not leave its search button disabled.
-      if (current === revision || !controller || controller.signal.aborted) {
-        searchButton.disabled = false;
-        input.removeAttribute('aria-busy');
+      const results = await search(query, request.signal);
+      if (current !== revision || request.signal.aborted) return null;
+      if (!resolve && document.activeElement !== input && document.activeElement !== searchButton) return null;
+      items = results;
+      if (!items.length) { onError('No encontramos lugares. Probá agregar la provincia, la ciudad o la calle.'); if (resolve) input.focus(); return null; }
+      if (resolve) {
+        const exactLabels = items.filter(item => key(item.label) === key(query));
+        const exactNames = items.filter(item => key(item.name || item.label) === key(query));
+        const cities = exactNames.filter(item => item.kind === 'Ciudad / localidad');
+        const matches = exactLabels.length ? exactLabels : cities.length ? cities : exactNames;
+        const result = matches.length === 1 ? matches[0] : items.length === 1 ? items[0] : null;
+        if (result) return pick(items.indexOf(result), { notify: false, focus: false });
       }
+      showResults();
+      if (resolve || document.activeElement === searchButton) input.focus();
+      onError(resolve ? `Hay varias coincidencias para «${query}». Elegí un lugar de la lista.` : `${items.length === 1 ? '1 lugar encontrado' : `${items.length} lugares encontrados`}. Elegí con un toque o con flechas y Enter.`, true);
+      return null;
+    } catch (error) {
+      if (current === revision && error.name !== 'AbortError') onError(error.message);
+      return null;
+    } finally {
+      signal?.removeEventListener('abort', abort);
+      if (current === revision) { searchButton.disabled = false; input.removeAttribute('aria-busy'); }
     }
   };
-  input.addEventListener('input', () => { selected = null; cancel(); searchButton.disabled = false; input.removeAttribute('aria-busy'); });
+  const schedule = () => {
+    selected = null; cancel(); onError('');
+    if (!composing && input.value.trim().length >= 3) timer = setTimeout(() => run(), 450);
+  };
+  input.addEventListener('compositionstart', () => { composing = true; cancel(); });
+  input.addEventListener('compositionend', () => { composing = false; schedule(); });
+  input.addEventListener('input', schedule);
   input.addEventListener('keydown', event => {
-    if (event.key === 'Escape') { cancel(); return; }
-    if (event.key === 'Enter') { event.preventDefault(); if (!list.hidden && active >= 0) pick(active); else run(); }
+    if (event.isComposing || composing) return;
+    if (event.key === 'Escape') { event.preventDefault(); cancel(); onError(''); return; }
+    if (event.key === 'Enter') { event.preventDefault(); if (!list.hidden && items.length) pick(active >= 0 ? active : 0); else run({ resolve: true }); }
     if (!list.hidden && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
       event.preventDefault();
       active = active < 0 ? (event.key === 'ArrowDown' ? 0 : items.length - 1) : (active + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
@@ -124,9 +159,14 @@ export function addressPicker(input, list, searchButton, search, onPick, onError
       input.setAttribute('aria-activedescendant', list.children[active].id);
       list.children[active].scrollIntoView({ block: 'nearest' });
     }
-    if (event.key === 'Tab') hide();
+    if (event.key === 'Tab') cancel();
   });
-  input.addEventListener('blur', hide);
-  searchButton.addEventListener('click', run);
-  return { get: () => selected, cancel, set(item) { cancel(); selected = item; input.value = item.label; } };
+  input.addEventListener('blur', cancel);
+  searchButton.addEventListener('click', () => run());
+  return {
+    get: () => selected,
+    cancel,
+    resolve: signal => selected ? Promise.resolve(selected) : run({ resolve: true, signal }),
+    set(item) { cancel(); selected = item; input.value = item.label; },
+  };
 }

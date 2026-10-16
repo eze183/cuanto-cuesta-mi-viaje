@@ -6,6 +6,7 @@ from pathlib import Path
 import threading
 import unittest
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlparse
 from playwright.sync_api import sync_playwright, expect
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -162,23 +163,22 @@ class BrowserTests(unittest.TestCase):
 
     def fixture_search(self, route):
         origin = 'Origen' in route.request.url
-        route.fulfill(json=[{'lat': '-34.60' if origin else '-34.61', 'lon': '-58.4', 'display_name': 'Origen, Buenos Aires' if origin else 'Destino, Buenos Aires'}])
+        route.fulfill(json={'type': 'FeatureCollection', 'features': [{'type': 'Feature', 'geometry': {'type': 'Point', 'coordinates': [-58.4, -34.60 if origin else -34.61]}, 'properties': {'name': 'Origen' if origin else 'Destino', 'city': 'Buenos Aires'}}]})
 
     def select_address(self, selector, value):
         self.page.locator(selector).fill(value)
-        self.page.locator(selector).press('Enter')
         expect(self.page.locator(selector)).to_have_attribute('aria-expanded', 'true')
         self.page.locator(selector).press('ArrowDown')
         self.page.locator(selector).press('Enter')
         expect(self.page.locator(selector)).to_have_attribute('aria-expanded', 'false')
 
     def test_address_keyboard_search_routing_and_network_failure(self):
-        self.page.route('https://nominatim.openstreetmap.org/**', self.fixture_search)
+        self.page.route('https://photon.komoot.io/**', self.fixture_search)
         self.page.route('https://router.project-osrm.org/**', lambda route: route.fulfill(json={'code': 'Ok', 'routes': [{'distance': 12400}]}))
         self.load()
         self.page.locator('#tab-address').click()
         self.page.locator('#btn-calc-address').click()
-        expect(self.page.locator('#address-error')).to_contain_text('elegí')
+        expect(self.page.locator('#address-error')).to_contain_text('ciudades')
         self.select_address('#trip-origen', 'Origen')
         self.select_address('#trip-destino', 'Destino')
         self.page.locator('#btn-calc-address').click()
@@ -190,9 +190,113 @@ class BrowserTests(unittest.TestCase):
         expect(self.page.locator('#address-error')).to_contain_text('distancia')
         expect(self.page.locator('#btn-calc-address')).to_be_enabled()
 
+    def city_response(self, name, state='Buenos Aires', coordinates=None):
+        return {'type': 'Feature', 'geometry': {'type': 'Point', 'coordinates': coordinates or [-56.97, -37.26]},
+                'properties': {'name': name, 'city': name, 'state': state, 'country': 'Argentina', 'osm_value': 'town'}}
+
+    def test_city_suggestions_appear_while_typing_and_support_touch_selection(self):
+        self.context.close()
+        self.context = self.browser.new_context(viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True)
+        self.page = self.context.new_page()
+        self.page.on('pageerror', lambda error: self.errors.append(str(error)))
+        searches = []
+        routes = []
+        def search(route):
+            searches.append(route.request.url)
+            route.fulfill(json={'features': [self.city_response('Villa Gesell')]})
+        def driving(route):
+            routes.append(route.request.url)
+            route.fulfill(json={'code': 'Ok', 'routes': [{'distance': 386000}]})
+        self.page.route('https://photon.komoot.io/**', search)
+        self.page.route('https://router.project-osrm.org/**', driving)
+        self.load()
+        self.page.locator('#tab-address').tap()
+        self.page.locator('#trip-destino').fill('vi')
+        self.page.wait_for_timeout(550)
+        self.assertEqual(searches, [])
+        self.page.locator('#trip-destino').fill('')
+        self.page.locator('#trip-destino').press_sequentially('villa gesell', delay=25)
+        expect(self.page.locator('#destino-suggestions')).to_be_visible()
+        expect(self.page.locator('#destino-suggestions .place-name')).to_have_text('Villa Gesell')
+        expect(self.page.locator('#destino-suggestions .place-context')).to_contain_text('Ciudad / localidad')
+        self.assertEqual(len(searches), 1)
+        self.page.screenshot(path='/tmp/tu-viaje-autocomplete.png', full_page=True, animations='disabled')
+        self.page.locator('#destino-suggestions [role="option"]').tap()
+        expect(self.page.locator('#trip-destino')).to_have_value('Villa Gesell, Buenos Aires, Argentina')
+        self.assertEqual(routes, [])
+
+    def test_calculate_resolves_typed_city_names_without_forcing_a_street_or_selection(self):
+        searches = []
+        routes = []
+        def search(route):
+            query = parse_qs(urlparse(route.request.url).query)['q'][0].lower()
+            searches.append(query)
+            if query == 'buenos aires':
+                features = [self.city_response('Buenos Aires', coordinates=[-58.3816, -34.6037])]
+            else:
+                features = [self.city_response('Villa Gesell'), self.city_response('Hospital de Villa Gesell')]
+            route.fulfill(json={'features': features})
+        def driving(route):
+            routes.append(route.request.url)
+            route.fulfill(json={'code': 'Ok', 'routes': [{'distance': 386000}]})
+        self.page.route('https://photon.komoot.io/**', search)
+        self.page.route('https://router.project-osrm.org/**', driving)
+        self.load()
+        self.page.locator('#tab-address').click()
+        self.page.locator('#trip-origen').fill('Buenos Aires')
+        self.page.locator('#trip-destino').fill('villa gesell')
+        self.page.locator('#btn-calc-address').click()
+        expect(self.page.locator('#result-distance')).to_have_text('386 km')
+        expect(self.page.locator('#result-route')).to_contain_text('Villa Gesell')
+        self.page.wait_for_timeout(550)
+        self.assertEqual(searches, ['buenos aires', 'villa gesell'])
+        self.assertEqual(len(routes), 1)
+        self.assertIn('-58.3816,-34.6037;-56.97,-37.26', routes[0])
+        self.assertEqual(self.history(), [])
+
+    def test_ambiguous_city_requires_choice_and_keeps_province_visible(self):
+        routes = []
+        def search(route):
+            query = parse_qs(urlparse(route.request.url).query)['q'][0].lower()
+            features = [self.city_response('Buenos Aires')] if query == 'buenos aires' else [
+                self.city_response('San Martín', 'Buenos Aires'), self.city_response('San Martín', 'Mendoza', [-68.46, -33.08])]
+            route.fulfill(json={'features': features})
+        self.page.route('https://photon.komoot.io/**', search)
+        self.page.route('https://router.project-osrm.org/**', lambda route: (routes.append(route.request.url), route.fulfill(json={'code': 'Ok', 'routes': [{'distance': 900000}]})))
+        self.load()
+        self.page.locator('#tab-address').click()
+        self.page.locator('#trip-origen').fill('Buenos Aires')
+        self.page.locator('#trip-destino').fill('San Martin')
+        self.page.locator('#btn-calc-address').click()
+        expect(self.page.locator('#destino-suggestions')).to_be_visible()
+        expect(self.page.locator('#address-status')).to_contain_text('varias coincidencias')
+        expect(self.page.locator('#destino-suggestions')).to_contain_text('Mendoza')
+        self.assertEqual(routes, [])
+        self.page.locator('#destino-suggestions [role="option"]').nth(1).click()
+        self.page.locator('#btn-calc-address').click()
+        expect(self.page.locator('#result-distance')).to_have_text('900 km')
+        self.assertIn('-68.46,-33.08', routes[0])
+
+    def test_shortened_query_escape_and_blur_do_not_reopen_autocomplete(self):
+        self.page.route('https://photon.komoot.io/**', lambda route: route.fulfill(json={'features': [self.city_response('Villa Gesell')]}))
+        self.load()
+        self.page.locator('#tab-address').click()
+        self.page.locator('#trip-destino').fill('Villa')
+        expect(self.page.locator('#destino-suggestions')).to_be_visible()
+        self.page.locator('#trip-destino').press('Escape')
+        expect(self.page.locator('#destino-suggestions')).not_to_be_visible()
+        self.page.locator('#trip-destino').fill('vi')
+        self.page.wait_for_timeout(550)
+        expect(self.page.locator('#destino-suggestions')).not_to_be_visible()
+        self.page.locator('#trip-destino').fill('Villa Gesell')
+        self.page.locator('#trip-origen').focus()
+        self.page.wait_for_timeout(550)
+        expect(self.page.locator('#destino-suggestions')).not_to_be_visible()
+        expect(self.page.locator('#trip-origen')).to_be_focused()
+
     def test_cancelled_search_cannot_show_stale_results(self):
         pending = []
-        self.page.route('https://nominatim.openstreetmap.org/**', lambda route: pending.append(route))
+        self.page.route('https://photon.komoot.io/**', lambda route: pending.append(route))
         self.load()
         self.page.locator('#tab-address').click()
         self.page.locator('#trip-origen').fill('Origen')
@@ -200,7 +304,7 @@ class BrowserTests(unittest.TestCase):
         self.page.wait_for_function('document.getElementById("trip-origen").getAttribute("aria-busy") === "true"')
         self.page.locator('#trip-origen').fill('')
         if pending:
-            pending[0].fulfill(json=[{'lat': '-34.6', 'lon': '-58.4', 'display_name': 'Old result'}])
+            pending[0].fulfill(json={'features': [{'geometry': {'type': 'Point', 'coordinates': [-58.4, -34.6]}, 'properties': {'name': 'Old result'}}]})
         expect(self.page.locator('#origen-suggestions')).not_to_be_visible()
         expect(self.page.locator('#search-origin')).to_be_enabled()
         expect(self.page.locator('#trip-origen')).to_have_value('')
@@ -222,10 +326,10 @@ class BrowserTests(unittest.TestCase):
 
     def test_search_results_are_safe_and_arrow_up_selects_last_option(self):
         payload = '<img src=x onerror="window.injected=true">'
-        self.page.route('https://nominatim.openstreetmap.org/**', lambda route: route.fulfill(json=[
-            {'lat': '-34.6', 'lon': '-58.4', 'display_name': 'First result'},
-            {'lat': '-34.61', 'lon': '-58.41', 'display_name': payload},
-        ]))
+        self.page.route('https://photon.komoot.io/**', lambda route: route.fulfill(json={'features': [
+            {'geometry': {'type': 'Point', 'coordinates': [-58.4, -34.6]}, 'properties': {'name': 'First result'}},
+            {'geometry': {'type': 'Point', 'coordinates': [-58.41, -34.61]}, 'properties': {'name': payload}},
+        ]}))
         self.load()
         self.page.locator('#tab-address').click()
         self.page.locator('#trip-origen').fill('Origen')
@@ -233,14 +337,14 @@ class BrowserTests(unittest.TestCase):
         expect(self.page.locator('#trip-origen')).to_have_attribute('aria-expanded', 'true')
         expect(self.page.locator('#origen-suggestions img')).to_have_count(0)
         self.page.locator('#trip-origen').press('ArrowUp')
-        expect(self.page.locator('[role="option"][aria-selected="true"]')).to_have_text(payload)
+        expect(self.page.locator('[role="option"][aria-selected="true"]')).to_have_attribute('aria-label', payload)
         self.page.locator('#trip-origen').press('Enter')
         expect(self.page.locator('#trip-origen')).to_have_value(payload)
         self.assertFalse(self.page.evaluate('Boolean(window.injected)'))
 
     def test_cancelled_route_does_not_replace_result_after_mode_switch(self):
         pending = []
-        self.page.route('https://nominatim.openstreetmap.org/**', self.fixture_search)
+        self.page.route('https://photon.komoot.io/**', self.fixture_search)
         self.page.route('https://router.project-osrm.org/**', lambda route: pending.append(route))
         self.load()
         self.calculate()

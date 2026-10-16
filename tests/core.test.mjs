@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { positive, normalizeConfig, normalizeTrip, calculateTrip, groupHistory, gpsSegment, money, comparison } from '../js/domain.mjs';
 import { createStore, CONFIG_KEY, HISTORY_KEY } from '../js/storage.mjs';
 import { createTracker } from '../js/gps.mjs';
-import { fetchJSON, routeDistance, searchAddresses } from '../js/services.mjs';
+import { fetchJSON, routeDistance, searchPlaces } from '../js/services.mjs';
 const config = { consumoCiudad: 10, consumoRuta: 7, precio: 1000, moneda: 'ARS', peso: 70 };
 const memory = () => { const data = new Map(); return { data, getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
 
@@ -117,22 +117,39 @@ test('routing validates actual route responses and converts meters to km', async
   globalThis.fetch = async () => ({ ok: true, json: async () => ({ code: 'NoRoute', routes: [] }) });
   await assert.rejects(routeDistance(point, point), /ruta/);
 });
-test('explicit geocoding caches results, spaces requests, validates coordinates and honors cancellation', async t => {
+test('autocomplete accepts cities, points of interest and exact street addresses; caches and validates results', async t => {
   const original = globalThis.fetch; t.after(() => { globalThis.fetch = original; });
   const requests = [];
-  globalThis.fetch = async () => {
-    requests.push(Date.now());
-    return { ok: true, json: async () => [
-      { lat: '-34.6', lon: '-58.4', display_name: 'Buenos Aires' },
-      { lat: '999', lon: '200', display_name: 'invalid coordinates' },
-    ] };
+  const feature = (properties, coordinates = [-56.97, -37.26]) => ({ geometry: { type: 'Point', coordinates }, properties });
+  globalThis.fetch = async url => {
+    requests.push(url);
+    return { ok: true, json: async () => ({ features: [
+      feature({ name: 'Villa Gesell', city: 'Villa Gesell', state: 'Buenos Aires', country: 'Argentina', osm_value: 'town' }),
+      feature({ street: 'Avenida Corrientes', housenumber: '1234', city: 'Buenos Aires', country: 'Argentina', type: 'house' }),
+      feature({ name: 'Obelisco', city: 'Buenos Aires', type: 'other' }),
+      feature({ name: 'bad coordinates' }, [200, 999]),
+      feature({ name: 'not a number' }, ['-58', '-34']),
+      feature({}),
+    ] }) };
   };
-  assert.equal((await searchAddresses('first query')).length, 1);
-  assert.equal((await searchAddresses('first query')).length, 1);
-  assert.equal(requests.length, 1);
-  await searchAddresses('second query');
-  assert.ok(requests[1] - requests[0] >= 1000);
+  assert.deepEqual(await searchPlaces('vi'), []); assert.equal(requests.length, 0);
+  const results = await searchPlaces('Villa  Gesell');
+  assert.equal(results.length, 3);
+  assert.equal(results[0].name, 'Villa Gesell');
+  assert.equal(results[0].kind, 'Ciudad / localidad');
+  assert.equal(results[0].label, 'Villa Gesell, Buenos Aires, Argentina');
+  assert.equal(results[0].lat, -37.26); assert.equal(results[0].lng, -56.97);
+  assert.equal(results[1].label, 'Avenida Corrientes 1234, Buenos Aires, Argentina');
+  assert.equal(results[1].kind, 'Dirección');
+  assert.equal(results[2].kind, 'Lugar');
+  assert.ok(requests[0].startsWith('https://photon.komoot.io/api/?'));
+  await searchPlaces(' villa gesell '); assert.equal(requests.length, 1);
   const controller = new AbortController(); controller.abort();
-  await assert.rejects(searchAddresses('first query', controller.signal), { name: 'AbortError' });
-  assert.equal(requests.length, 2);
+  await assert.rejects(searchPlaces('Villa Gesell', controller.signal), { name: 'AbortError' });
+  assert.equal(requests.length, 1);
+});
+test('invalid autocomplete responses fail visibly rather than returning unrelated results', async t => {
+  const original = globalThis.fetch; t.after(() => { globalThis.fetch = original; });
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ error: 'bad' }) });
+  await assert.rejects(searchPlaces('invalid response query'), /respuesta inválida/);
 });

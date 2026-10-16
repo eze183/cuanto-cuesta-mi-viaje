@@ -25,8 +25,8 @@ export async function fetchJSON(url, { signal, timeout = 12000 } = {}) {
   } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
 }
 
-// Explicit searches only: public Nominatim does not support autocomplete.
-// Serialize and cache requests, including reverse lookups.
+// Public Nominatim is used only for explicit reverse lookups, serialized
+// and cached. Autocomplete uses Photon below.
 async function geocodeRequest(url, signal) {
   if (signal?.aborted) throw new DOMException('Cancelado', 'AbortError');
   if (cache.has(url)) return cache.get(url);
@@ -46,12 +46,43 @@ async function geocodeRequest(url, signal) {
   return task;
 }
 
-export async function searchAddresses(query, signal) {
-  const params = new URLSearchParams({ format: 'json', addressdetails: '1', limit: '5', 'accept-language': 'es', q: query });
-  const data = await geocodeRequest(`https://nominatim.openstreetmap.org/search?${params}`, signal);
-  if (!Array.isArray(data)) throw new Error('El buscador devolvió una respuesta inválida. Intentá de nuevo.');
-  return data.filter(item => item.lat != null && item.lon != null && Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon)) && Math.abs(Number(item.lat)) <= 90 && Math.abs(Number(item.lon)) <= 180 && typeof item.display_name === 'string')
-    .map(item => ({ lat: Number(item.lat), lng: Number(item.lon), label: item.display_name }));
+const placesCache = new Map();
+const text = value => typeof value === 'string' ? value.trim() : '';
+
+function placeFromFeature(feature) {
+  const coordinates = feature?.geometry?.coordinates;
+  if (feature?.geometry?.type !== 'Point' || !Array.isArray(coordinates) || coordinates.length < 2) return null;
+  const [lng, lat] = coordinates;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  const p = feature.properties || {};
+  const street = [text(p.street), text(p.housenumber)].filter(Boolean).join(' ');
+  const name = p.type === 'house' && street ? street : text(p.name) || street || text(p.city) || text(p.state) || text(p.country);
+  if (!name) return null;
+  const parts = [name, street, text(p.city), text(p.district), text(p.state), text(p.country)].filter(Boolean);
+  const unique = [...new Map(parts.map(part => [part.toLocaleLowerCase(), part])).values()];
+  const type = text(p.type) || text(p.osm_value);
+  const kind = ['city', 'town', 'village', 'hamlet', 'municipality', 'locality'].includes(type) ? 'Ciudad / localidad'
+    : ['house', 'street'].includes(type) || !text(p.name) && street ? 'Dirección'
+    : ['district', 'suburb', 'neighbourhood'].includes(type) ? 'Barrio'
+    : ['country', 'state', 'county'].includes(type) ? 'Región' : 'Lugar';
+  return { lat, lng, name, kind, label: unique.join(', '), detail: unique.slice(1).join(', ') };
+}
+
+// Photon explicitly supports search-as-you-type, including cities and POIs.
+// No per-keystroke requests are made to the public Nominatim service.
+export async function searchPlaces(query, signal) {
+  if (signal?.aborted) throw new DOMException('Cancelado', 'AbortError');
+  const normalized = query.trim().replace(/\s+/g, ' ');
+  if (normalized.length < 3) return [];
+  const key = normalized.toLocaleLowerCase();
+  if (placesCache.has(key)) return placesCache.get(key);
+  const params = new URLSearchParams({ q: normalized, limit: '6' });
+  const data = await fetchJSON(`https://photon.komoot.io/api/?${params}`, { signal });
+  if (!Array.isArray(data?.features) || data.type && data.type !== 'FeatureCollection') throw new Error('El buscador devolvió una respuesta inválida. Intentá de nuevo.');
+  const results = data.features.map(placeFromFeature).filter(Boolean);
+  placesCache.set(key, results);
+  if (placesCache.size > 100) placesCache.delete(placesCache.keys().next().value);
+  return results;
 }
 
 export async function reverseGeocode(point, signal) {

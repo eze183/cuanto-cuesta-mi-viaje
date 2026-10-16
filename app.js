@@ -1,8 +1,8 @@
 import { VEHICLES, positive, normalizeConfig, calculateTrip, groupHistory, comparison, number, money, distance, duration, routeLabel } from './js/domain.mjs';
 import { createStore } from './js/storage.mjs';
-import { searchAddresses, routeDistance, currentPosition, reverseGeocode, loadMapLibrary } from './js/services.mjs';
+import { searchPlaces, routeDistance, currentPosition, reverseGeocode, loadMapLibrary } from './js/services.mjs?v=places-1';
 import { createTracker } from './js/gps.mjs';
-import { $, node, message, openDialog, closeDialog, initDialogs, addressPicker } from './js/ui.mjs';
+import { $, node, message, openDialog, closeDialog, initDialogs, addressPicker } from './js/ui.mjs?v=places-1';
 
 const store = createStore({ getItem: key => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) }, text => message('storage-notice', text));
 let config = store.loadConfig();
@@ -203,8 +203,8 @@ $('btn-delete-trip').addEventListener('click', () => {
 
 function cancelRoute() { routeController?.abort(); routeController = null; $('btn-calc-address').disabled = false; $('btn-calc-address').replaceChildren(document.createTextNode('Calcular recorrido'), icon('arrow')); }
 function addressMessage(text, status = false) { message('address-error', status ? '' : text); message('address-status', status ? text : ''); }
-const originPicker = addressPicker($('trip-origen'), $('origen-suggestions'), $('search-origin'), searchAddresses, cancelRoute, addressMessage);
-const destinationPicker = addressPicker($('trip-destino'), $('destino-suggestions'), $('search-destination'), searchAddresses, cancelRoute, addressMessage);
+const originPicker = addressPicker($('trip-origen'), $('origen-suggestions'), $('search-origin'), searchPlaces, cancelRoute, addressMessage);
+const destinationPicker = addressPicker($('trip-destino'), $('destino-suggestions'), $('search-destination'), searchPlaces, cancelRoute, addressMessage);
 ['trip-origen', 'trip-destino'].forEach(id => $(id).addEventListener('input', () => { cancelRoute(); locationController?.abort(); addressMessage(''); }));
 $('btn-use-location').addEventListener('click', async () => {
   locationController?.abort();
@@ -221,12 +221,16 @@ $('btn-use-location').addEventListener('click', async () => {
 });
 $('address-form').addEventListener('submit', event => {
   event.preventDefault();
-  const origin = originPicker.get(); const destination = destinationPicker.get();
-  if (!origin || !destination) { addressMessage('Buscá y elegí una dirección de origen y una de destino antes de calcular.'); (!origin ? $('trip-origen') : $('trip-destino')).focus(); return; }
+  const missing = !$('trip-origen').value.trim() ? $('trip-origen') : !$('trip-destino').value.trim() ? $('trip-destino') : null;
+  if (missing) { addressMessage('Ingresá un origen y un destino: pueden ser ciudades, lugares o direcciones.'); missing.focus(); return; }
   withConfig(async () => {
     cancelRoute(); const controller = new AbortController(); routeController = controller;
     $('btn-calc-address').disabled = true; $('btn-calc-address').textContent = 'Calculando…'; addressMessage('');
     try {
+      const origin = await originPicker.resolve(controller.signal);
+      if (!origin || controller.signal.aborted) return;
+      const destination = await destinationPicker.resolve(controller.signal);
+      if (!destination || controller.signal.aborted) return;
       const km = await routeDistance(origin, destination, controller.signal);
       if (!controller.signal.aborted && mode === 'address') estimate(km, { origen: origin.label, destino: destination.label }, 'address-error');
     } catch (error) { if (error.name !== 'AbortError') addressMessage(error.message); }

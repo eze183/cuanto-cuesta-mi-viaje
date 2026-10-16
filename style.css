@@ -149,6 +149,8 @@ footer p { font-size: .75rem; }
 .address-suggestions { position: absolute; top: 100%; left: 0; right: 0; z-index: 5; list-style: none; padding: 5px; margin: 6px 0 0; max-height: 260px; overflow-y: auto; background: #233128; border: 1px solid #52634d; border-radius: 10px; box-shadow: 0 12px 25px #0005; }
 .address-option { padding: 12px 10px; border-radius: 6px; font-size: .83rem; cursor: pointer; overflow-wrap: anywhere; }
 .address-option:hover, .address-option[aria-selected='true'] { background: #3a4b34; color: var(--accent); }
+.place-name { display: block; font-weight: 600; }
+.place-context { display: block; margin-top: 3px; color: var(--muted); font-size: .75rem; }
 .gps-intro { text-align: center; padding: 6px 12px 12px; }
 .large-icon { display: grid; place-items: center; margin: 0 auto 14px; width: 56px; height: 56px; color: var(--accent); background: #c5f2770a; border-radius: 18px; border: 1px solid #47583e; }
 .large-icon .icon { width: 30px; height: 30px; }

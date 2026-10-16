@@ -7,8 +7,8 @@
   <meta name="description" content="Calculá el combustible y el costo de tus viajes. Por distancia, dirección o GPS, con un historial guardado en tu navegador.">
   <title>Tu viaje · Calculadora de combustible</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23c5f277'/%3E%3Cpath d='M10 28V15a5 5 0 0 1 10 0v10a5 5 0 0 0 10 0V12' fill='none' stroke='%23101917' stroke-width='3'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="style.css">
-  <script type="module" src="app.js"></script>
+  <link rel="stylesheet" href="style.css?v=places-1">
+  <script type="module" src="app.js?v=places-1"></script>
 </head>
 <body>
   <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
@@ -42,7 +42,7 @@
           <div class="section-heading"><div><p class="eyebrow">PLANIFICÁ TU RECORRIDO</p><h2 id="calculator-title" tabindex="-1">Tu próximo viaje</h2></div><span class="step-badge">01</span></div>
           <div class="mode-tabs" role="tablist" aria-label="Cómo calcular el viaje">
             <button id="tab-distance" role="tab" aria-selected="true" aria-controls="panel-distance" data-mode="distance"><svg class="icon"><use href="#i-route"/></svg>Distancia</button>
-            <button id="tab-address" role="tab" aria-selected="false" aria-controls="panel-address" tabindex="-1" data-mode="address"><svg class="icon"><use href="#i-pin"/></svg>Dirección</button>
+            <button id="tab-address" role="tab" aria-selected="false" aria-controls="panel-address" tabindex="-1" data-mode="address"><svg class="icon"><use href="#i-pin"/></svg>Lugares</button>
             <button id="tab-gps" role="tab" aria-selected="false" aria-controls="panel-gps" tabindex="-1" data-mode="gps"><svg class="icon"><use href="#i-gps"/></svg>GPS</button>
           </div>
           <fieldset class="consumption"><legend>Tipo de recorrido</legend><div class="segmented" id="consumo-switch"><label><input type="radio" name="consumption" value="ciudad" checked><span>Ciudad</span></label><label><input type="radio" name="consumption" value="ruta"><span>Ruta</span></label></div></fieldset>
@@ -57,10 +57,10 @@
           </form>
           <form id="address-form" novalidate>
             <div id="panel-address" role="tabpanel" aria-labelledby="tab-address" hidden>
-              <label for="trip-origen">Desde</label><div class="address-field"><div class="search-field"><input type="text" id="trip-origen" placeholder="Dirección y ciudad" autocomplete="off" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="origen-suggestions" aria-describedby="address-hint"><button id="search-origin" type="button" class="icon-btn" aria-label="Buscar dirección de origen"><svg class="icon"><use href="#i-search"/></svg></button></div><ul id="origen-suggestions" role="listbox" aria-label="Direcciones de origen" class="address-suggestions" hidden></ul></div>
+              <label for="trip-origen">Desde</label><div class="address-field"><div class="search-field"><input type="text" id="trip-origen" placeholder="Ciudad, lugar o dirección" autocomplete="off" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="origen-suggestions" aria-describedby="address-hint"><button id="search-origin" type="button" class="icon-btn" aria-label="Buscar origen"><svg class="icon"><use href="#i-search"/></svg></button></div><ul id="origen-suggestions" role="listbox" aria-label="Sugerencias de origen" class="address-suggestions" hidden></ul></div>
               <button id="btn-use-location" class="text-button" type="button"><svg class="icon"><use href="#i-gps"/></svg>Usar mi ubicación</button>
-              <label for="trip-destino">Hasta</label><div class="address-field"><div class="search-field"><input type="text" id="trip-destino" placeholder="Dirección y ciudad" autocomplete="off" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="destino-suggestions" aria-describedby="address-hint"><button id="search-destination" type="button" class="icon-btn" aria-label="Buscar dirección de destino"><svg class="icon"><use href="#i-search"/></svg></button></div><ul id="destino-suggestions" role="listbox" aria-label="Direcciones de destino" class="address-suggestions" hidden></ul></div>
-              <p id="address-hint" class="hint">Buscá con la lupa o Enter y elegí una dirección. Datos de © OpenStreetMap.</p>
+              <label for="trip-destino">Hasta</label><div class="address-field"><div class="search-field"><input type="text" id="trip-destino" placeholder="Ciudad, lugar o dirección" autocomplete="off" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="destino-suggestions" aria-describedby="address-hint"><button id="search-destination" type="button" class="icon-btn" aria-label="Buscar destino"><svg class="icon"><use href="#i-search"/></svg></button></div><ul id="destino-suggestions" role="listbox" aria-label="Sugerencias de destino" class="address-suggestions" hidden></ul></div>
+              <p id="address-hint" class="hint">Escribí una ciudad, lugar o dirección y elegí una sugerencia. Para ciudades o zonas usamos un punto de referencia. Datos © OpenStreetMap · Photon.</p>
               <p id="address-status" class="hint" role="status" hidden></p><p id="address-error" class="error" role="alert" hidden></p>
               <button id="btn-calc-address" class="btn-primary" type="submit">Calcular recorrido <svg class="icon"><use href="#i-arrow"/></svg></button>
             </div>

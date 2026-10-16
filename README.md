@@ -1,6 +1,6 @@
 # Tu viaje
 
-Calculadora estática de combustible, sin backend ni paso de compilación. Permite estimar por distancia, buscar un recorrido por dirección o registrar distancia con GPS. Calcular no modifica el historial: cada viaje se guarda mediante una acción explícita.
+Calculadora estática de combustible, sin backend ni paso de compilación. Permite estimar por distancia, buscar un recorrido por ciudad, lugar o dirección o registrar distancia con GPS. Calcular no modifica el historial: cada viaje se guarda mediante una acción explícita.
 
 ## Desarrollo
 
@@ -47,12 +47,17 @@ Los registros inválidos no se muestran ni se modifican al leer. Antes de reempl
 
 ## Mapas y ubicación
 
-- Búsquedas explícitas y geocodificación inversa: `nominatim.openstreetmap.org`.
+- Autocompletado de ciudades, barrios, lugares y direcciones: `photon.komoot.io`.
+- Geocodificación inversa para «Usar mi ubicación»: `nominatim.openstreetmap.org`.
 - Rutas para automóvil: `router.project-osrm.org`.
 - Leaflet 1.9.4, cargado al recibir la primera posición GPS: `unpkg.com`.
 - Teselas: `a.tile.openstreetmap.org`, `b.tile.openstreetmap.org`, `c.tile.openstreetmap.org`.
 
-La búsqueda se ejecuta con la lupa o Enter; los resultados se eligen con flechas y Enter o con un toque. No se envían consultas mientras se escribe: el servicio público Nominatim no permite autocompletado. Las consultas se serializan, con al menos 1,1 segundos entre inicios y caché de sesión. Para una aplicación con tráfico considerable, usar un proveedor adecuado o una instancia propia; revisar las políticas de [Nominatim](https://operations.osmfoundation.org/policies/nominatim/) y [teselas OSM](https://operations.osmfoundation.org/policies/tiles/).
+Las sugerencias aparecen al escribir al menos 3 caracteres, tras una pausa de 450 ms. Se usa [Photon](https://github.com/komoot/photon), que admite búsqueda mientras se escribe y no requiere clave. Las consultas se cachean durante la sesión; al editar, salir del campo o cambiar de modo se cancelan las solicitudes anteriores. Los resultados muestran el nombre, el tipo de lugar y su ubicación para distinguir ciudades homónimas. Se pueden elegir con un toque, flechas y Enter, o buscar inmediatamente con la lupa.
+
+Al calcular con nombres escritos sin seleccionar, se resuelven las coincidencias únicas o exactas inequívocas. Si hay varias ciudades con el mismo nombre, se pide elegir una. Para una ciudad o zona se usa un punto representativo del proveedor, por lo que no equivale a la distancia hasta una dirección exacta. Las calles con numeración y los puntos de interés siguen admitidos.
+
+El servidor público de Photon permite uso razonable, sin garantía de disponibilidad; para tráfico considerable, contratar un proveedor o desplegar una instancia propia. Nominatim se usa solo para geocodificación inversa explícita, con peticiones serializadas y al menos 1,1 segundos entre inicios; no se usa para autocompletar. Revisar las políticas de [Nominatim](https://operations.osmfoundation.org/policies/nominatim/) y [teselas OSM](https://operations.osmfoundation.org/policies/tiles/).
 
 El navegador envía las direcciones consultadas y, si se solicita ubicación, las coordenadas necesarias a estos proveedores. La ubicación solo se pide después de una acción explícita. El GPS necesita un contexto seguro (HTTPS o loopback para desarrollo), permiso de ubicación y la pantalla abierta. Puede pausarse en segundo plano. La estimación GPS descarta posiciones de precisión superior a 50 m, pequeñas variaciones de posición y saltos incompatibles con un viaje en auto; sigue siendo una estimación y puede subestimar trayectos con señal deficiente.
 
